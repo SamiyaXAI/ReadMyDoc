@@ -8,7 +8,11 @@ from langchain.chains import RetrievalQA
 def generate_response(uploaded_file, openai_api_key, query_text):
     # Load document if file is uploaded
     if uploaded_file is not None:
-        documents = [uploaded_file.read().decode()]
+        try:
+            documents = [uploaded_file.read().decode('utf-8')]
+        except UnicodeDecodeError:
+            uploaded_file.seek(0)  # Go back to beginning before re-reading
+            documents = [uploaded_file.read().decode('windows-1252', errors='ignore')]
         # Split documents into chunks
         text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
         texts = text_splitter.create_documents(documents)
