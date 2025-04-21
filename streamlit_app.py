@@ -1,76 +1,83 @@
+# app.py
 import streamlit as st
-from langchain.llms import OpenAI
+from langchain.llms import HuggingFaceHub
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chains import RetrievalQA
+import os
+from dotenv import load_dotenv
+import PyPDF2
 
-def generate_response(uploaded_file, openai_api_key, query_text):
-    # Load document if file is uploaded
+# Load .env file
+load_dotenv()
+os.environ['HF_TOKEN'] = os.getenv("HF_TOKEN")
+
+# Initialize LLM and embeddings
+llm = HuggingFaceHub(
+    repo_id="mistralai/Mistral-7B-Instruct-v0.1",  # You can replace with another free model
+    model_kwargs={"temperature": 0.5, "max_new_tokens": 512}
+)
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+# Function to extract text from PDF
+def extract_text_from_pdf(file):
+    reader = PyPDF2.PdfReader(file)
+    text = ""
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text
+    return text
+
+# Core QA generation function
+def generate_response(uploaded_file, query_text):
     if uploaded_file is not None:
-        try:
-            documents = [uploaded_file.read().decode('utf-8')]
-        except UnicodeDecodeError:
-            uploaded_file.seek(0)  # Go back to beginning before re-reading
-            documents = [uploaded_file.read().decode('windows-1252', errors='ignore')]
-        # Split documents into chunks
+        raw_text = extract_text_from_pdf(uploaded_file)
+        # Split text into chunks
         text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        texts = text_splitter.create_documents(documents)
-        # Select embeddings
-        embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
-        # Create a vectorstore from documents
+        texts = text_splitter.create_documents([raw_text])
+        # Vectorize and create retriever
         db = FAISS.from_documents(texts, embeddings)
-        # Create retriever interface
         retriever = db.as_retriever()
-        # Create QA chain
-        qa = RetrievalQA.from_chain_type(llm=OpenAI(openai_api_key=openai_api_key), chain_type='stuff', retriever=retriever)
+        # Run QA chain
+        qa = RetrievalQA.from_chain_type(llm=llm, chain_type='stuff', retriever=retriever)
         return qa.run(query_text)
 
-
 # Page title
-st.set_page_config(page_title='🦜🔗 Ask the Document App')
-st.title('🦜🔗 Ask the Document App')
+st.set_page_config(page_title='📄 Ask the Document (OpenAI-Free)')
+st.title('📄 Ask the Document App (No OpenAI API Needed)')
 
-# Explanation of the App
+# Description
 st.header('About the App')
 st.write("""
-The App is an advanced question-answering platform that allows users to upload text documents and receive answers to their queries based on the content of these documents. Utilizing RAG approach powered by OpenAI's GPT models, the app provides insightful and contextually relevant answers.
+This app allows you to upload any `.pdf` document and ask questions about its content using a Retrieval-Augmented Generation (RAG) system — completely OpenAI-free!
 
 ### How It Works
-- Upload a Document: You can upload any text document in `.pdf` format.
-- Ask a Question: After uploading the document, type in your question related to the document's content.
-- Get Answers: AI analyzes the document and provides answers based on the information contained in it.
-
-
-### Get Started
-Simply upload your document and start asking questions!
+- Upload a PDF document
+- Ask a question about the content
+- Get a smart answer powered by open-source LLMs and Hugging Face embeddings
 """)
 
 # File upload
-uploaded_file = st.file_uploader('Upload an article', type='pdf')
-# Query text
-query_text = st.text_input('Enter your question:', placeholder = 'Please provide a short summary.', disabled=not uploaded_file)
+uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
+query_text = st.text_input("Enter your question:", placeholder="e.g. Summarize this article.", disabled=not uploaded_file)
 
-# Form input and query
+# Form
 result = []
-with st.form('myform', clear_on_submit=True):
-    openai_api_key = st.text_input('OpenAI API Key', type='password', disabled=not (uploaded_file and query_text))
-    submitted = st.form_submit_button('Submit', disabled=not(uploaded_file and query_text))
-    if submitted and openai_api_key.startswith('sk-'):
-        with st.spinner('Calculating...'):
-            response = generate_response(uploaded_file, openai_api_key, query_text)
+with st.form("query_form", clear_on_submit=True):
+    submitted = st.form_submit_button("Submit", disabled=not(uploaded_file and query_text))
+    if submitted:
+        with st.spinner("Thinking..."):
+            response = generate_response(uploaded_file, query_text)
             result.append(response)
-            del openai_api_key
 
+# Show result
 if len(result):
-    st.info(response)
+    st.subheader("Answer:")
+    st.info(result[0])
 
-
-# Instructions for getting an OpenAI API key
-st.subheader("Get an OpenAI API key")
-st.write("You can get your own OpenAI API key by following the instructions:")
-st.write("""
-1. Go to [OpenAI API Keys](https://platform.openai.com/account/api-keys).
-2. Click on the `+ Create new secret key` button.
-3. Next, enter an identifier name (optional) and click on the `Create secret key` button.
-""")
+# Debug or logs (optional)
+with st.expander("Show Debug Info"):
+    st.write("HuggingFaceHub LLM used: `Mistral-7B-Instruct-v0.1`")
+    st.write("Embeddings: `all-MiniLM-L6-v2`")
