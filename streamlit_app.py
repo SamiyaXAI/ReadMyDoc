@@ -11,7 +11,7 @@ import PyPDF2
 
 # Load .env file
 load_dotenv()
-os.environ['HF_TOKEN'] = os.getenv("HF_TOKEN")
+
 
 # Initialize LLM and embeddings
 llm = HuggingFaceHub(
