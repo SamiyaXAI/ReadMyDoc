@@ -1,5 +1,8 @@
-import streamlit as st
+
 import os
+os.environ["STREAMLIT_WATCH_TOC"] = "false"
+import streamlit as st
+
 import PyPDF2
 from dotenv import load_dotenv
 
