@@ -14,7 +14,7 @@ load_dotenv()
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # --- Set up Embeddings ---
-embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 # --- Set up LLM using a lightweight, free model ---
 llm = HuggingFaceHub(
